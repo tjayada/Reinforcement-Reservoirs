@@ -7,5 +7,8 @@ The paper by Matsuki (2022) has been changed such that instead of the proposed t
 ### Report
 A report / documentation of this project is available as the pdf file `reinforcement_reservoirs`. 
 
+### Quick demo and walktrough
+https://colab.research.google.com/drive/1SIlN2_4dq5Tw3hfE4W0am9xnUyEjcRkp
+
 ### Future Outlook
 I hope that either me or someone else will be able to train the RC-DQN to play the Atari Breakout game eventually.
