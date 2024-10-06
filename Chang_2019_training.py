@@ -5,10 +5,21 @@ import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir
 import warnings
 import pickle
+import pandas as pd
+import os
 
+ENV_NAME = "CarRacing-v2"
+DIRECTORY = "Chang_2019_data"
 
 warnings.filterwarnings("ignore")
-np.seed = 42
+seed = 42
+np.random.seed(seed)
+torch.manual_seed(seed)
+
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else 
+    "mps" if torch.backends.mps.is_available() else
+    "cpu")
 
 
 def normalize_input(image):
@@ -90,7 +101,7 @@ class TakeAction(object):
         model_out = self.cnn(norm_in)
 
         # Pass the output of the CNN through the reservoir
-        reservoir_out = self.reservoir(model_out.flatten().detach().numpy(), reset=is_first_frame)
+        reservoir_out = self.reservoir(model_out.flatten().detach().cpu().numpy(), reset=is_first_frame)
         reservoir_out = torch.tensor(reservoir_out, dtype=torch.float32)
 
         # Set the weights of the readout neuron
@@ -98,7 +109,7 @@ class TakeAction(object):
             self.readout.W_out.copy_(torch.tensor(cma_weights.reshape(3, -1), dtype=torch.float32))
 
         # Compute the action using the readout neuron and the reservoir state and CNN output
-        out = self.readout(model_out,reservoir_out).detach().numpy().flatten()
+        out = self.readout(model_out,reservoir_out).detach().cpu().numpy().flatten()
         out = np.tanh(out)
 
         # Clip the action to be between -1 and 1 according to the paper
@@ -146,11 +157,12 @@ if __name__ == "__main__":
     from multiprocessing import Pool
     import gymnasium as gym
     from gymnasium.wrappers import ResizeObservation
+    import tqdm
     
     save_model_episode = 100
 
     # Set the parameters for the CMA-ES optimization
-    parallel_runs = 32
+    parallel_runs = 16
     generations = 500
 
     # Set the dimensions of the reservoir and the input and output sizes
@@ -166,16 +178,23 @@ if __name__ == "__main__":
                     )
 
     # Initialize the CarRacing-v2 environment with a wrapper to resize the observation
-    env = gym.make("CarRacing-v2", render_mode="rgb_array")
+    env = gym.make(ENV_NAME, render_mode="rgb_array")
     env = ResizeObservation(env, 64)
     
-    # Initialize the CNN, Reservoir, and ReadoutNeuron
+    # Initialize the CNN, Reservoir
     cnn = CNN().eval()
     reservoir = Reservoir(
         units=reservoir_size,
         sr=0.95,
-        lr=0.8
+        lr=0.8,
+        seed=seed
         )
+    # Save the CNN and Reservoir since they are randomly initialized and are not changed during the optimization
+    torch.save(cnn.state_dict(), f'{DIRECTORY}/{ENV_NAME}/Chang_2019_CNN.pth')
+    with open(f"{DIRECTORY}/{ENV_NAME}/Chang_2019_Reservoir.pkl", "wb") as rs:
+        pickle.dump(reservoir, rs)
+    
+    # Initialize the ReadoutNeuron
     readout = ReadoutNeuron(
         input_size=input_size, 
         reservoir_size=reservoir_size, 
@@ -192,11 +211,11 @@ if __name__ == "__main__":
                         Reservoir=reservoir,
                         Readout=readout
                         )
-    
+
     # Run the CMA-ES optimization for the specified number of generations
-    for gen in range(generations):
+    for gen in tqdm.tqdm(range(generations)):
         # Use a multiprocessing pool to run the environment in parallel with the CMA-ES optimizer
-        with Pool(10) as pool:
+        with Pool(parallel_runs) as pool:
             # List to store the solutions from the parallel workers
             solutions = []
             # Form the data to be passed to the workers
@@ -210,32 +229,29 @@ if __name__ == "__main__":
             # Print the average value of the solutions for the generation
             avg = np.mean([-s[1] for s in solutions])
             print(f"Generation {gen}, Average Value: {avg}")
+            # Save the training progress using pandas
+            df = pd.DataFrame({
+                    "Generation": gen,
+                    "Reward": avg,
+                }, index=[0])
+
+            if not os.path.exists(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv"):
+                df.to_csv(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv", index=False)
+            else:
+                df.to_csv(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv", mode="a", header=False, index=False)
+            
+
+
             best_w = best_solution[0]
 
-        if save_model_episode % gen == 0:
+        if gen%save_model_episode == 0:
             # Save the best weights of the CMA-ES optimization for the ReadoutNeuron
-            with open(f"w_out_best_weights_{gen}.pkl", "wb") as bw:   
+            with open(f"{DIRECTORY}/{ENV_NAME}/Chang_2019_Weigths_{gen}.pkl", "wb") as bw:   
                 pickle.dump(best_w, bw)
-            
-            # Save the (randomly initialized) CNN
-            torch.save(cnn.state_dict(), f'cnn_{gen}.pth')
-
-            # Save the (randomly initialized) Reservoir
-            reservoir.reset()
-            with open(f"reservoir_{gen}.pkl", "wb") as rs:   
-                pickle.dump(reservoir, rs)
 
     # Save the final weights of the CMA-ES optimization for the ReadoutNeuron
-    with open("w_out_best_weights_final.pkl", "wb") as bw:   
+    with open(f"{DIRECTORY}/{ENV_NAME}/Chang_2019_Weigths_Final.pkl", "wb") as bw:   
         pickle.dump(best_w, bw)
-    
-    # Save the final (randomly initialized) CNN
-    torch.save(cnn.state_dict(), 'cnn_final.pth')
-
-    # Save the final (randomly initialized) Reservoir
-    reservoir.reset()
-    with open("reservoir_final.pkl", "wb") as rs:   
-        pickle.dump(reservoir, rs)
     
     # Close the environment
     env.close()

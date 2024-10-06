@@ -6,9 +6,10 @@ from reservoirpy.nodes import Reservoir
 import pickle
 
 # Define which model to load (e.g. "400" for the model trained for 400 episodes)
-model_to_load = "400"
+model_to_load = "0"
+ENV_NAME = "CarRacing-v2"
 # Define the path to the directory containing the models
-model_path = "data_first_run/"
+DIRECTORY = "Chang_2019_data"
 
 
 def normalize_input(image):
@@ -109,15 +110,15 @@ class TakeAction(object):
 
 # Load the trained CNN
 cnn = CNN()
-cnn.load_state_dict(torch.load(f"{model_path}cnn_{model_to_load}.pth", weights_only=True))
+cnn.load_state_dict(torch.load(f"{DIRECTORY}/{ENV_NAME}/Chang_2019_CNN.pth", weights_only=True))
 cnn.eval()
 
 # Load the Reservoir
-with open(f"{model_path}reservoir_{model_to_load}.pkl", "rb") as f:
+with open(f"{DIRECTORY}/{ENV_NAME}/Chang_2019_Reservoir.pkl", "rb") as f:
     reservoir = pickle.load(f)
 
 # Load the best weights found by CMA-ES
-with open(f"{model_path}w_out_best_weights_{model_to_load}.pkl", "rb") as f:
+with open(f"{DIRECTORY}/{ENV_NAME}/Chang_2019_Weigths_{model_to_load}.pkl", "rb") as f:
     best_w = pickle.load(f)
 
 # Define the ReadoutNeuron
@@ -140,7 +141,7 @@ take_action = TakeAction(
                     )
 
 # Play the game in human mode
-env = gym.make("CarRacing-v2", render_mode="human")
+env = gym.make(ENV_NAME, render_mode="human")
 # Resize the observation to 64x64
 env = ResizeObservation(env, 64)
 # Reset the environment
