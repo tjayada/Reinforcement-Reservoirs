@@ -7,6 +7,10 @@ import torch.optim as optim
 import numpy as np
 import pickle
 from reservoirpy.nodes import Reservoir
+import pandas as pd
+
+ENV_NAME = "BreakoutNoFrameskip-v4"
+DIRECTORY = "RC_DQN_data"
 
 # Configuration parameters for the whole setup
 seed = 42
@@ -20,8 +24,8 @@ max_steps_per_episode = 10000
 max_episodes = 0  # Limit training episodes, will run until solved if smaller than 1
 
 # Use the Atari environment
-env = gym.make("BreakoutNoFrameskip-v4")
-env = AtariPreprocessing(env)
+env = gym.make(ENV_NAME)
+env = AtariPreprocessing(env, grayscale_obs=False)
 #env = FrameStack(env, 4)
 env.unwrapped.seed(seed)
 np.random.seed(seed)
@@ -34,12 +38,16 @@ num_actions = 4
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=8, stride=4, padding=2)
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.flatten = nn.Flatten()
-        self.fc = nn.Linear(441, 512)
+        self.fc = nn.Linear(128, 512)
 
     def forward(self, x):
+        x = torch.relu(self.conv1(x))
         x = self.pool(x)
+        x = torch.relu(self.conv2(x))
         x = self.pool(x)
         x = self.flatten(x)
         x = self.fc(x)
@@ -51,14 +59,12 @@ class QNetwork(nn.Module):
     def __init__(self):
         super(QNetwork, self).__init__()
         self.fc1 = nn.Linear(1024, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, num_actions)
+        self.fc2 = nn.Linear(512, num_actions)
 
     def forward(self, x):
-        # forward pass with tanh activation
-        x = torch.tanh(self.fc1(x))
-        x = torch.tanh(self.fc2(x))
-        return self.fc3(x)
+        # forward pass with ReLU activation
+        x = torch.relu(self.fc1(x))
+        return self.fc2(x)
 
 # Normalize the input image
 def normalize_input(image):
@@ -76,7 +82,7 @@ model_target.eval()
 cnn = CNN().eval()
 #cnn = SimpleCNN().eval()
 # Save the CNN model
-torch.save(cnn.state_dict(), "res_DQN_cnn.pth")
+torch.save(cnn.state_dict(), f"{DIRECTORY}/{ENV_NAME}/CNN.pth")
 
 # Create Reservoir
 reservoir = Reservoir(
@@ -91,7 +97,7 @@ reservoir = Reservoir(
                 seed=seed,
             )
 # Save the Reservoir model
-with open("res_DQN_reservoir.pkl", "wb") as f:
+with open(f"{DIRECTORY}/{ENV_NAME}/Reservoir.pkl", "wb") as f:
     pickle.dump(reservoir, f)
 
 # Optimizer
@@ -121,7 +127,7 @@ loss_function = nn.SmoothL1Loss()  # Huber Loss
 while True:
     observation, _ = env.reset()
     state = normalize_input(observation)
-    state = np.array(state).reshape(1, 84, 84) # Add channel dimension
+    state = np.array(state).reshape(3, 84, 84) # Add channel dimension
     state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
     # Use CNN to downsample the game frames
     state_cnn = cnn(state).detach()
@@ -149,7 +155,7 @@ while True:
         # Step environment
         state_next, reward, done, _, _ = env.step(action)
         state_next = normalize_input(state_next)
-        state_next = np.array(state_next).reshape(1, 84, 84) # Add channel dimension
+        state_next = np.array(state_next).reshape(3, 84, 84) # Add channel dimension
         state_next = torch.tensor(state_next, dtype=torch.float32).unsqueeze(0) # Add batch dimension
         # Use CNN to downsample the game frames
         state_next_cnn = cnn(state_next).detach()
@@ -203,6 +209,18 @@ while True:
             model_target.load_state_dict(model.state_dict())
             print(f"Running reward: {running_reward:.2f} at episode {episode_count}, frame count {frame_count}, epsilon {epsilon:.2f}")
 
+            # Save the training progress using pandas
+            df = pd.DataFrame({
+                    "Episode": episode_count,
+                    "Reward": episode_reward,
+                }, index=[0])
+
+            if not os.path.exists(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv"):
+                df.to_csv(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv", index=False)
+            else:
+                df.to_csv(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv", mode="a", header=False, index=False)
+            
+
         # Limit memory size
         if len(rewards_history) > max_memory_length:
             del rewards_history[:1]
@@ -224,7 +242,7 @@ while True:
 
     # Save model
     if episode_count % save_model_episodes == 0:
-        torch.save(model.state_dict(), f"res_DQN_model_{episode_count}.pth")
+        torch.save(model.state_dict(), f"{DIRECTORY}/{ENV_NAME}/DQN_{episode_count}.pth")
 
     if running_reward > 40:
         print(f"Solved at episode {episode_count}!")

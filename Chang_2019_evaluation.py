@@ -6,7 +6,7 @@ from reservoirpy.nodes import Reservoir
 import pickle
 
 # Define which model to load (e.g. "400" for the model trained for 400 episodes)
-model_to_load = "0"
+model_to_load = "Final"
 ENV_NAME = "CarRacing-v2"
 # Define the path to the directory containing the models
 DIRECTORY = "Chang_2019_data"

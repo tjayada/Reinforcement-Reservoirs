@@ -5,9 +5,13 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import pandas as pd
+
+ENV_NAME = "BreakoutNoFrameskip-v4"
+DIRECTORY = "Mnih_2013_data"
 
 # Configuration parameters for the whole setup
-seed = 7
+seed = 42
 gamma = 0.99  # Discount factor for past rewards
 epsilon = 1.0  # Epsilon greedy parameter
 epsilon_min = 0.1  # Minimum epsilon greedy parameter
@@ -18,7 +22,7 @@ max_steps_per_episode = 10000
 max_episodes = 0  # Limit training episodes, will run until solved if smaller than 1
 
 # Use the Atari environment
-env = gym.make("BreakoutNoFrameskip-v4")
+env = gym.make(ENV_NAME)
 env = AtariPreprocessing(env)
 env = FrameStack(env, 4)
 env.unwrapped.seed(seed)
@@ -145,6 +149,18 @@ while True:
             model_target.load_state_dict(model.state_dict())
             print(f"Running reward: {running_reward:.2f} at episode {episode_count}, frame count {frame_count}, epsilon {epsilon:.2f}")
 
+            # Save the training progress using pandas
+            df = pd.DataFrame({
+                    "Episode": episode_count,
+                    "Reward": episode_reward,
+                }, index=[0])
+
+            if not os.path.exists(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv"):
+                df.to_csv(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv", index=False)
+            else:
+                df.to_csv(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv", mode="a", header=False, index=False)
+            
+
         # Limit memory size
         if len(rewards_history) > max_memory_length:
             del rewards_history[:1]
@@ -166,10 +182,11 @@ while True:
 
     # Save model
     if episode_count % save_model_episodes == 0:
-        torch.save(model.state_dict(), f"DQN_model_{episode_count}.pth")
+        torch.save(model.state_dict(), f"{DIRECTORY}/{ENV_NAME}/Mnih_2013_DQN_{episode_count}.pth")
 
     if running_reward > 40:
         print(f"Solved at episode {episode_count}!")
+        torch.save(model.state_dict(), f"{DIRECTORY}/{ENV_NAME}/Mnih_2013_DQN_Final.pth")
         break
 
     if max_episodes > 0 and episode_count >= max_episodes:
