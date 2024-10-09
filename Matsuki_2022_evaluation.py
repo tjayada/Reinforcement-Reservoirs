@@ -6,9 +6,9 @@ import numpy as np
 from reservoirpy.nodes import Reservoir
 import pickle
 
-#ENV_NAME = "CartPole-v1"
+ENV_NAME = "CartPole-v1"
 #ENV_NAME = "Acrobot-v1"
-ENV_NAME = "MountainCar-v0"
+#ENV_NAME = "MountainCar-v0"
 DIRECTORY = "Matsuki_2022_data"
 
 OBSERVATION_SPACE_AFTER_PREPROCESSING = (

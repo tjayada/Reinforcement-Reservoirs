@@ -25,7 +25,7 @@ max_episodes = 0  # Limit training episodes, will run until solved if smaller th
 
 # Use the Atari environment
 env = gym.make(ENV_NAME)
-env = AtariPreprocessing(env, grayscale_obs=False)
+env = AtariPreprocessing(env)
 #env = FrameStack(env, 4)
 env.unwrapped.seed(seed)
 np.random.seed(seed)
@@ -35,22 +35,21 @@ torch.manual_seed(seed)
 num_actions = 4
 
 # CNN for doensampling the game frames
+# Taken from Mnih_2013 without activation functions
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=8, stride=4, padding=2)
-        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.flatten = nn.Flatten()
-        self.fc = nn.Linear(128, 512)
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+        self.fc1 = nn.Linear(64 * 7 * 7, 512)
 
     def forward(self, x):
         x = torch.relu(self.conv1(x))
-        x = self.pool(x)
         x = torch.relu(self.conv2(x))
-        x = self.pool(x)
-        x = self.flatten(x)
-        x = self.fc(x)
+        x = torch.relu(self.conv3(x))
+        x = x.view(x.size(0), -1)
+        x = torch.relu(self.fc1(x))
         return x
 
 
@@ -58,7 +57,7 @@ class CNN(nn.Module):
 class QNetwork(nn.Module):
     def __init__(self):
         super(QNetwork, self).__init__()
-        self.fc1 = nn.Linear(1024, 512)
+        self.fc1 = nn.Linear(512 + 512, 512)
         self.fc2 = nn.Linear(512, num_actions)
 
     def forward(self, x):
@@ -80,7 +79,6 @@ model_target.eval()
 
 # Create CNN model
 cnn = CNN().eval()
-#cnn = SimpleCNN().eval()
 # Save the CNN model
 torch.save(cnn.state_dict(), f"{DIRECTORY}/{ENV_NAME}/CNN.pth")
 
@@ -92,7 +90,7 @@ reservoir = Reservoir(
                 sr=0.95,
                 # high lr ->  low inertia, low recall of previous states
                 # low lr -> high inertia, high recall of previous states
-                lr=0.9,
+                lr=0.95,
                 #input_scaling=10.0,
                 seed=seed,
             )
@@ -115,7 +113,7 @@ episode_count = 0
 frame_count = 0
 epsilon_random_frames = 50000
 epsilon_greedy_frames = 1000000.0
-max_memory_length = 100000
+max_memory_length = 1_000_000
 update_after_actions = 4
 update_target_network = 10000
 
@@ -127,7 +125,8 @@ loss_function = nn.SmoothL1Loss()  # Huber Loss
 while True:
     observation, _ = env.reset()
     state = normalize_input(observation)
-    state = np.array(state).reshape(3, 84, 84) # Add channel dimension
+
+    state = np.array(state).reshape(1, 84, 84) # Add channel dimension
     state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
     # Use CNN to downsample the game frames
     state_cnn = cnn(state).detach()
@@ -136,7 +135,6 @@ while True:
     state_res = torch.tensor(state_res, dtype=torch.float32)
     # Concatenate the CNN and Reservoir states
     state = torch.cat((state_cnn, state_res), dim=1)
-
     episode_reward = 0
 
     for timestep in range(1, max_steps_per_episode):
@@ -155,7 +153,7 @@ while True:
         # Step environment
         state_next, reward, done, _, _ = env.step(action)
         state_next = normalize_input(state_next)
-        state_next = np.array(state_next).reshape(3, 84, 84) # Add channel dimension
+        state_next = np.array(state_next).reshape(1, 84, 84) # Add channel dimension
         state_next = torch.tensor(state_next, dtype=torch.float32).unsqueeze(0) # Add batch dimension
         # Use CNN to downsample the game frames
         state_next_cnn = cnn(state_next).detach()

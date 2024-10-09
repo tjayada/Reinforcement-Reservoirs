@@ -151,8 +151,10 @@ while True:
 
             # Save the training progress using pandas
             df = pd.DataFrame({
-                    "Episode": episode_count,
-                    "Reward": episode_reward,
+                "average_reward": [round(running_reward,2)],
+                "episode": [episode_count],
+                "frame": [frame_count],
+                "epsilon": [round(epsilon,2)]
                 }, index=[0])
 
             if not os.path.exists(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv"):

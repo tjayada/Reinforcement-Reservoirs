@@ -5,7 +5,10 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+ENV_NAME = "BreakoutNoFrameskip-v4"
+DIRECTORY = "Mnih_2013_data"
 
+# Define which episode to load
 episode_to_load = 4_000
 
 # Configuration parameters for the whole setup
@@ -16,7 +19,7 @@ max_steps_per_episode = 10000
 max_episodes = 1  # Number of episodes to run for testing
 
 # Use the Atari environment
-env = gym.make("BreakoutNoFrameskip-v4", render_mode="human")
+env = gym.make(ENV_NAME, render_mode="human")
 env = AtariPreprocessing(env)
 env = FrameStack(env, 4)
 env.unwrapped.seed(seed)
@@ -45,7 +48,7 @@ class QNetwork(nn.Module):
 
 # Load pre-trained model
 model = QNetwork()
-model.load_state_dict(torch.load(f"DQN_model_{episode_to_load}.pth", weights_only=True))
+model.load_state_dict(torch.load(f"{DIRECTORY}/{ENV_NAME}/Mnih_2013_DQN_{episode_to_load}.pth", weights_only=True))
 model.eval()
 
 episode_reward_history = []
