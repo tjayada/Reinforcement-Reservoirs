@@ -1,5 +1,6 @@
 # Reinforcement Reservoirs
 <br>
+
 ## Introduction
 This repository contains several training and evaluation scripts related to reinforcement learning and reservoir computing, as well as the resulting data. 
 Neither the paper by Chang and Futagami (2019) nor the paper by Matsuki (2022) published code, so this repository may be the first to actually replicate these papers and provide the corresponding implementations. 
@@ -41,6 +42,7 @@ The resulting data can be found in the `Chang_2019_data` directory.
 An evaluation run is shown below :
 
 ![](images/Chang_2019_eval_run.gif)
+
 <br>
 
 Reference to the original paper:
@@ -58,7 +60,9 @@ Reference to the original paper:
 ```
 
 <br>
+
 --
+
 ### Toshitaka Matsuki (2022)
 
 The paper by Matsuki (2022) was successfully replicated using the `Matsuki_2022_training.py` script and then evaluated using `Matsuki_2022_evaluation.py`. <br>
@@ -81,6 +85,7 @@ Reference to the original paper:
 <br>
 
 --
+
 ### Mnih et al. (2013) 
 
 Since the chosen environments by Matsuki (2022) may not provide adequate proof of the model working correctly, as these environment have been critized for their lack of complexity before, I have decided to implement a version of this model such that it can solve the Atari Breakout game. 
@@ -88,7 +93,9 @@ The decision of this environment is mainly based on the paper by Mnih et al. (20
 The resulting data can be found in the `Mnih_2013_data` directory. <br> The training script itself is largely based on this [script](https://github.com/keras-team/keras-io/blob/master/examples/rl/deep_q_network_breakout.py) in a repository maintained by the keras team. 
 
 <br>
+
 --
+
 ### Combine all 
 
 I then tried to modify the `Mnih_2013_training.py` script to incorporate the results of Chang and Futagami (2019) by using an untrained CNN to project the game frames into the reservoir, and the results of Matsuki (2022) by using Q-learning and an MLP to learn the task. This unsuccessful attempt can be seen in the training script `RC_DQN.py`. It seems that the "simple" method of projecting the game frames into the reservoir using an untrained CNN is not sophisticated enough, but many other hyperparameters could and probably should be adjusted to improve the performance of the model as well.

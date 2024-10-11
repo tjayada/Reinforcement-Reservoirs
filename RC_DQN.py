@@ -39,17 +39,15 @@ num_actions = 4
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=8, stride=4)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
-        self.fc1 = nn.Linear(64 * 7 * 7, 512)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.fc1 = nn.Linear(441, 512)
 
     def forward(self, x):
-        x = torch.relu(self.conv1(x))
-        x = torch.relu(self.conv2(x))
-        x = torch.relu(self.conv3(x))
+        x = self.pool1(x)
+        x = self.pool2(x)
         x = x.view(x.size(0), -1)
-        x = torch.relu(self.fc1(x))
+        x = self.fc1(x)
         return x
 
 
@@ -57,13 +55,15 @@ class CNN(nn.Module):
 class QNetwork(nn.Module):
     def __init__(self):
         super(QNetwork, self).__init__()
-        self.fc1 = nn.Linear(512 + 512, 512)
-        self.fc2 = nn.Linear(512, num_actions)
+        self.fc1 = nn.Linear(512 + 512, 1024)
+        self.fc2 = nn.Linear(1024, 512)
+        self.fc3 = nn.Linear(512, num_actions)
 
     def forward(self, x):
-        # forward pass with ReLU activation
-        x = torch.relu(self.fc1(x))
-        return self.fc2(x)
+        # forward pass with tanh activation
+        x = torch.tanh(self.fc1(x))
+        x = torch.tanh(self.fc2(x))
+        return self.fc3(x)
 
 # Normalize the input image
 def normalize_input(image):
@@ -113,7 +113,7 @@ episode_count = 0
 frame_count = 0
 epsilon_random_frames = 50000
 epsilon_greedy_frames = 1000000.0
-max_memory_length = 1_000_000
+max_memory_length = 200_000
 update_after_actions = 4
 update_target_network = 10000
 
@@ -209,8 +209,10 @@ while True:
 
             # Save the training progress using pandas
             df = pd.DataFrame({
-                    "Episode": episode_count,
-                    "Reward": episode_reward,
+                "average_reward": [round(running_reward,2)],
+                "episode": [episode_count],
+                "frame": [frame_count],
+                "epsilon": [round(epsilon,2)]
                 }, index=[0])
 
             if not os.path.exists(f"{DIRECTORY}/{ENV_NAME}/training_stats.csv"):
